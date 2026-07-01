@@ -1,35 +1,68 @@
-const Routes= require("./routes/Routes.js")
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
+const rateLimit = require("express-rate-limit");
+require("dotenv").config();
 
-const express= require("express")
-let app= express()
-app.use(express.json())
+const Routes = require("./routes/Routes.js");
 
-const cors = require('cors');
-app.use(cors())
+const app = express();
+const PORT = process.env.PORT || 8000;
 
-const mongoose= require("mongoose")
+app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+app.use(cors());
 
-require('dotenv').config()
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(limiter);
 
-const URI= process.env.MONGO_URI
+app.use("/api", Routes);
 
-mongoose.connect(URI,{}).then(console.log("MongoDB connected")).catch((e)=>{console.log(e)});
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "BookVerse API is running" });
+});
 
-const rateLimit = require('express-rate-limit')
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
-const limiter= rateLimit({
-    windowMs: 1000,
-    limit: 1
-})
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
 
-app.use(limiter)
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({
+    message: err.message || "Internal server error",
+  });
+});
 
-app.use("/api/", Routes)
+const connectToDatabase = async () => {
+  if (!process.env.MONGO_URI) {
+    throw new Error("MONGO_URI is not defined");
+  }
 
-app.get("/", (req, res)=>{
-    res.status(200).send("Vercel")
-})
+  await mongoose.connect(process.env.MONGO_URI);
+};
 
-app.listen(8000,()=>{
-    console.log("Port connected at 8000");
-})
+if (require.main === module) {
+  connectToDatabase()
+    .then(() => {
+      console.log("MongoDB connected");
+      app.listen(PORT, () => {
+        console.log(`Port connected at ${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error("MongoDB connection failed:", error.message);
+      process.exit(1);
+    });
+}
+
+module.exports = app;

@@ -1,22 +1,20 @@
-const user= require("../controllers/UserController.js")
+const express = require("express");
+const user = require("../controllers/UserController.js");
+const book = require("../controllers/BookController.js");
+const review = require("../controllers/ReviewController.js");
+const auth = require("../middlewares/AuthVerify.js");
+const adVeri = require("../middlewares/AdminVerify.js");
 
-const book= require("../controllers/BookController.js")
-const review= require("../controllers/ReviewController.js")
+const router = express.Router();
 
-const auth= require("../middlewares/AuthVerify.js")
-const adVeri= require("../middlewares/AdminVerify.js")
+router.post("/register", user.register);
+router.post("/login", user.login);
 
-const express= require("express")
-let Routes= express()
+router.post("/books", auth, adVeri, book.post);
+router.get("/books", book.list);
+router.get("/books/:id", book.get);
 
-Routes.post('/register', user.register)
-Routes.post('/login', user.login)
+router.post("/books/:id/reviews", auth, review.post);
+router.get("/books/:id/reviews", review.get);
 
-Routes.post('/books', auth, adVeri, book.post)
-Routes.get('/books/', book.list)
-Routes.get('/books/:id', book.get)
-
-Routes.post('/books/:id/reviews', auth, review.post)
-Routes.get('/books/:id/reviews', review.get)
-
-module.exports= Routes;
+module.exports = router;

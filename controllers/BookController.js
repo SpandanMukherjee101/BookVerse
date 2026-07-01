@@ -1,59 +1,77 @@
-const books = require("../models/BookModel.js")
+const mongoose = require("mongoose");
+const books = require("../models/BookModel.js");
 
 class BookController {
-    async post(req, res) {
-        try {
-            const bookData={
-                title: req.body.title,
-                author: req.body.author,
-                description: req.body.description,
-                genre: req.body.genre,
-                published: req.body.published
-            }
+  async post(req, res) {
+    try {
+      const { title, author, description, genre, published } = req.body || {};
 
-            const newBook= await books.create(bookData)
-            res.json(newBook)
-        }
-        catch (e) {
-            res.status(500).send(e)
-        }
+      if (!title || !author || !description || !genre || published === undefined) {
+        return res.status(400).json({ message: "Title, author, description, genre, and published are required" });
+      }
+
+      if (!Array.isArray(genre) || genre.length === 0) {
+        return res.status(400).json({ message: "Genre must be a non-empty array" });
+      }
+
+      const bookData = {
+        title: String(title).trim(),
+        author: String(author).trim(),
+        description: String(description).trim(),
+        genre: genre.map((item) => String(item).trim()),
+        published: Number(published),
+      };
+
+      const newBook = await books.create(bookData);
+      return res.status(201).json(newBook);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Failed to create book" });
     }
+  }
 
-    async list(req, res) {
-        try {
-            const page = parseInt(req.query.pg) || 1;
-            const limit = 10;
-            const skip = (page - 1) * limit;
+  async list(req, res) {
+    try {
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+      const skip = (page - 1) * limit;
 
-            const titles= []
+      const [bookList, totalBooks] = await Promise.all([
+        books.find().skip(skip).limit(limit),
+        books.countDocuments(),
+      ]);
 
-            const bookList = await books.find().skip(skip).limit(limit)
-            bookList.forEach(book=> {
-                titles.push(book.title)
-            });
-
-            res.json({titles: titles})
-
-        } catch (e) {
-            res.status(500).send(e)
-        }
+      return res.json({
+        titles: bookList.map((book) => book.title),
+        page,
+        limit,
+        totalBooks,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Failed to fetch books" });
     }
+  }
 
-    async get(req, res) {
-        try {
-            const bookId = req.params.id
-            
-            try {
-                const bookData = await books.findOne({ _id: bookId })                
-                if (bookData)
-                    res.json(bookData)
-            } catch (e) {
-                res.status(404).send(e)
-            }
-        } catch (e) {
-            res.status(500).send(e)
-        }
+  async get(req, res) {
+    try {
+      const bookId = req.params.id;
+
+      if (!mongoose.isValidObjectId(bookId)) {
+        return res.status(400).json({ message: "Invalid book id" });
+      }
+
+      const bookData = await books.findById(bookId);
+      if (!bookData) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+
+      return res.json(bookData);
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Failed to fetch book" });
     }
+  }
 }
 
-module.exports = new BookController()
+module.exports = new BookController();
